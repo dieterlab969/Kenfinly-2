@@ -30,6 +30,7 @@ KENFINLY identifies this downstream product; it does not imply endorsement by th
 - [Day 01 report](DAY_01_REPORT.md)
 - [Day 02 local setup and verification report](DAY_02_REPORT.md)
 - [Day 03 HTTPS local setup report](DAY_03_REPORT.md)
+- [Day 03 public Ubuntu deployment report](DAY_03_DEPLOYMENT_REPORT.md)
 - [Local onboarding for Apple Silicon](docs/ONBOARDING.md)
 - [Local verification evidence and timings](docs/LOCAL_VERIFICATION.md)
 - [Latest daily engineering report](DAILY_REPORT.md)

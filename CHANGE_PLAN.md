@@ -306,3 +306,9 @@ Require Gates A–C evidence, original license/notice verification, approved art
 ## 8. Day 01 exit decision (historical)
 
 Safe to continue environment setup and review the proposed branding. Not yet verified safe to merge runtime branding or release. The six requested planning/report documents and README attribution are prepared; installation, runtime, screenshots, tests and rollback rehearsal remain open gates. See `DAY_01_REPORT.md` for actual command outcomes.
+
+### Delivery cleanup and local review identity
+
+Automation/configuration review commit: `2c1aa18fde13a74484801dd8cb475367a4d86e1a`, local only. It does not change the public source SHA or remote develop. Before closing, remove only the unchanged task-created bootstrap CI secret copy and Mac operator/CI access copies, close only the named temporary operator SSH control session, and retain runtime secrets in their intended protected server/Jenkins stores. Keep synthetic account/evidence/data and all unrelated sessions. Validate public and Mac health after closure. Recreating administrative access later uses the owner's existing credentials/host trust; no application key, database, peer or runtime service is removed.
+
+Delivery cleanup executed successfully: removed the unchanged bootstrap CI copy and Mac operator/CI access copies, closed only the named temporary SSH control session and removed its empty directory. Production/Jenkins secret stores, test data and evidence remain retained. Public health still returns 200 with TLS verification result 0 after SSH closure; the independent alpha health/services also pass. Source review commit remains local and no remote event was triggered.

@@ -1,111 +1,106 @@
 # KENFINLY 2.0 — Daily Engineering Report
 
-Date: 2026-11-18 (Asia/Ho_Chi_Minh)\
-Day: 03\
-Objective: Execute isolated local HTTPS development at alpha.my.kenfinly.com and document reproducible onboarding with measured evidence.\
-Status: Completed
+Date: 2026-11-18 (Asia/Saigon)\
+Day: 03 — public Ubuntu deployment phase\
+Objective: Establish the public Ubuntu/WireGuard/VPS deployment and a dedicated develop Jenkins pipeline, with real verification and safe code rollback.\
+Status: Blocked
 
-The local environment works within the scope verified below. Existing opening-summary and translation defects remain open. This is not release approval or a completed UI rebrand.
+The public deployment and manual Jenkins deploy/rollback work are complete. Full sign-off remains blocked by unverified new-commit triggering/external mail delivery and the previously known opening-summary defect. Those limits are not counted as completed. The earlier Day 03 Mac report is preserved as its own dated archive.
 
 ## 1. Completed Work
 
-- Reviewed actual Day 01/02 documents, instructions, Git state, source, lockfiles, environment examples and installed services before changing configuration. Added the Day 03 scope/reason/risk/verification/rollback register to `CHANGE_PLAN.md` first.
-- Reused the owner-authorized isolated native approach and existing Apple Silicon tooling; did not install Docker, relink PHP/Node or alter the Sail policy. Confirmed installed PHP 8.5.6, Composer 2.10.0, Node 26.0.0, npm 11.12.1, MySQL 9.6.0 and repository package versions.
-- Added repeatable project service/setup helpers in `kenfinly-local` and `docker/local/`, with ownership/conflict checks, private backups, local DB identity checks and safe start/stop behavior.
-- Configured the required loopback hostname, a new certificate from the existing trusted mkcert CA, one Nginx site and a separate project FPM pool. The owner completed the reviewed hosts/reload administrator helpers. Existing sites/configuration and shared services were preserved.
-- Configured the local HTTPS app/assets origin, a uniquely named host-only Secure/HttpOnly session, exact Sanctum hostname, local mail catcher, database worker and scheduler. Preserved the existing application key and isolated Day 02 development/test data.
-- Verified real registration/login, CSRF rejection, cookie isolation, wallet/income/expense persistence, queued summary processing, app restart, local password-reset email, asset delivery and a live WSS hot update. The known opening-summary workaround remains explicit.
-- Ran the existing PHP/JS suite and build successfully. Tested production/foreign-state refusal, repeated setup/start and fresh database initialization/migrations in separate scratch data. Restored the original database and checked unchanged row counts. Retired the superseded owned Day 02 HTTP server on port 18080.
-- Created English onboarding and verification documents. Measured actual provisioned-Mac operations without claiming a fresh Mac/clone is verified in 15 minutes.
-
-Git reference: `develop`, `e3936669c7906550024f56e61aca80cf0d834da8`. No new commit, push, release, hosted workflow or deployment. The setup changes remain reviewable working-tree files; Day 01/02 reports remain byte-identical.
+- Reviewed instructions, actual repository state, deployment files, manifests/locks and existing reports before changes. The owner had committed/published the prior local setup as `b76d9c6b082bb8de83ab0da29fd58db5af5c2e68`; the checkout was clean at this task's start. `.ai/rules` remains absent.
+- Recorded exact host/runtime/permission/network/migration/rollback changes in `CHANGE_PLAN.md` before execution. This task explicitly authorized the public deployment; no Git push was inferred from that authorization.
+- Verified the actual topology: public VPS `210.245.84.76`, WireGuard `10.0.0.1 → 10.0.0.2`, home Ubuntu Nginx 18082, separate loopback FPM 19084. Reused healthy tunnel peers/routes and preserved default routes.
+- Preserved `/var/www/Kenfinly-2` and the separate older application. Created dedicated release/shared/current/previous layout, non-login runtime/deployment/database users and a private project MySQL instance/database/users. Existing shared data/credentials were not reused.
+- Installed only required PHP 8.4 extensions with a reviewed same-major patch update to 8.4.27; selected private Linux Node 24.22.3 with official checksum verification. Default PHP 8.2, shared Node 20 and other runtime majors remain unchanged.
+- Configured root-protected persistent production env/key, APP_DEBUG=false, exact public URLs, host-only secure public session, existing bounded trusted-proxy setting, file cache/session, owned queue and one scheduler timer. No production key rotation or data reset occurred.
+- Configured one target virtual host per server, one exact WireGuard ingress allowance, the existing matching public certificate and renewal hook. Selected-lineage renewal simulation passed; no host-key/TLS bypass or forced production certificate renewal.
+- Added a scoped WireGuard-only Postfix path with fixed sender and peer restrictions. Registered a dedicated synthetic user, received actual verification mail in the new private VPS mailbox and accepted its signed HTTPS link with email verification enabled.
+- Created dedicated Jenkins job `kenfinly-2-public-develop`, used Jenkins credentials storage, validated the definition and completed manual deploy plus B→A→B code switching. Original unrelated job configuration is unchanged.
+- Exercised public login, income/expense, queued processing, session/storage persistence, header spoof rejection and browser cookie isolation. Kept the existing full-summary workaround explicit.
+- Created six requested deployment documents. Automation/configuration is recorded in local review commit **`2c1aa18fde13a74484801dd8cb475367a4d86e1a`**; no push was performed. Public application source remains the selected remote develop commit **b76d9c6b…**, not an unpublished local commit.
+- Removed only task-created administrative/CI secret copies, closed the named temporary operator SSH session, and verified the public app still responds afterward. Runtime secrets remain in their intended protected server/Jenkins stores; synthetic evidence/data is retained.
 
 ## 2. Deliverables
 
-| Path | Output |
+| Path | Actual output |
 | --- | --- |
-| `docs/ONBOARDING.md` | English prerequisites, exact tested versions, clone/ref boundary, locked install, local configuration/DB/TLS, services, verification, troubleshooting, safe reset/rollback and timings |
-| `docs/LOCAL_VERIFICATION.md` | Actual configuration, commands/results, private evidence locations, measurements, failure corrections and remaining limits |
-| `CHANGE_PLAN.md` | Day 03 implementation register, trust-store/scratch-verification adjustments and execution outcome |
-| `kenfinly-local` | Standard-library Python command entry point for owned project services/setup/tests |
-| `docker/local/hostname.sh`, `activate.sh` | Minimal reviewed administrator hosts and checked Nginx graceful reload helpers |
-| `docker/local/php-fpm.conf.template`, `nginx.conf.template` | Separate FPM pool and exact-host HTTPS site configuration |
-| `docker/local/vite.config.mjs` | Loopback HTTPS/WSS development wrapper preserving base Vite configuration |
-| `docker/local/verify.mjs` | Opt-in synthetic HTTPS/HMR/mail/restart infrastructure check using locked Playwright |
-| `DAY_03_REPORT.md`, `DAILY_REPORT.md` | Dated report and identical current daily report |
-| `README.md` | Links to current onboarding, verification and Day 03 report; original attribution retained |
-| Ignored `.env`, `storage/app/kenfinly-local/` | Local credentials/config backups, leaf certificate, process state/logs, mail database, caches, screenshots and measured evidence |
+| `docs/UBUNTU_SETUP.md` | Exact runtime, layout, users, private DB/configuration and owned services |
+| `docs/NETWORK_AND_DOMAIN.md` | Actual proxy/WireGuard route, domain, TLS renewal, SMTP boundaries and network rollback |
+| `docs/JENKINS_DEPLOYMENT.md` | Job, branch/refspec, credential IDs, stages/guards and unverified trigger boundary |
+| `docs/DEPLOYMENT_RUNBOOK.md` | Deployment, migration approval, code rollback and failure recovery without database rewind |
+| `docs/DEPLOYMENT_VERIFICATION.md` | Executed evidence, release identities, synthetic data and completed/blocked matrix |
+| `docs/ENVIRONMENT_MATRIX.md` | Independent Mac, public Ubuntu and isolated CI profiles |
+| `Jenkinsfile`, `docker/deploy/` | Pipeline, Linux build/release scripts, Nginx/FPM/MySQL/systemd/sudo/Postfix/renewal configuration |
+| `CHANGE_PLAN.md`, `README.md` | Implementation/rollback/outcome register and current documentation links |
+| `DAY_03_DEPLOYMENT_REPORT.md`, `DAILY_REPORT.md` | This phase's dated report and identical latest report |
+| Private ignored evidence | `storage/app/ubuntu-deployment/`: logs, manifests, screenshots and synthetic verification records; never publish wholesale |
 
-No credentials, cookies, CA private key, database contents or TLS private keys are included in distributable source files.
+Original MIT file, upstream reference/history, prior dated reports, dependency locks and application financial/schema/test source are preserved. Inherited YAFFA UI branding remains visible; APP_NAME is KENFINLY.
 
 ## 3. Verification
 
-| Command/check | Result |
+| Check | Actual result |
 | --- | --- |
-| `./kenfinly-local setup --adopt-existing-env` | Exit 0, **27.22s** on the existing provisioned checkout; original key/data retained |
-| Locked Composer install/platform check/package discovery | Exit 0, no dependency updates |
-| `npm ci` and `npm run build` through the helper | Exit 0; 324 locked JS packages; existing build notices retained |
-| Normal TLS curl `/login` and `/up`; macOS certificate verification | HTTP **200**, TLS result **0**; no bypass |
-| Real Chromium via `./kenfinly-local verify` | Exit 0, **12.86s**; TLS 1.3, registration/login, wrong-password rejection, CSRF 419, secure host-only cookie, no cookie selected for production hostname |
-| Synthetic financial endpoint flow | Wallet opening USD 500, income 150, expense 30; existing full-summary rebuild produces **620**; five queued jobs observed before worker resumes |
-| Restart/mail/HMR | Data/session retained, local reset email captured, HTTPS dev assets/WSS and actual **initial → updated** hot update pass; built mode restored |
-| `./kenfinly-local test` | **1,806 PHP tests passed / 6,427 assertions**, **40 JS tests passed**, total **74.04s** |
-| Fresh scratch database provisioning/migration | Pass, **3.331s + 0.839s**, 0 users; original instance restored |
-| Retained development data | **48 users, 114 transactions, 43 account entities** before/after restoration/repeated setup; original key unchanged |
-| Repeated setup and start | **19.77s** + **0.38s**; no Nginx site change or new reload, repeated `up` preserves PIDs |
-| Safety guards / syntax | Existing/production env and foreign state refused without env overwrite; shell/Python/Node syntax checks pass |
-| Isolation/preservation | Non-loopback HTTPS returns **403**; shared configuration hashes and service processes preserved; four other local sites respond |
-| Protected files | MIT license, both lockfiles, Day 01/02 archives unchanged; no application financial/schema/test source modification |
+| Linux locked install/platform/build | Pass; PHP 8.4.27, Node 24.22.3, MySQL 8.0.46; no lock upgrade or Mac artifact reuse |
+| Existing PHP/JS suites | **1,806 PHP tests / 6,427 assertions**, **40 JS tests** passed on Linux; separate CI DB only |
+| Jenkins #1 | **SUCCESS**, develop deploy, 314.074s; active SHA b76d9c6b… archived |
+| Jenkins #2 | **SUCCESS**, B→A code rollback to e3936669…, 8.139s |
+| Jenkins #3 | **SUCCESS**, A→B return to current develop, 7.893s; final release `20261118T040320300266Z-b76d9c6b082b-1` |
+| Public HTTPS/redirect/renewal | Health/login 200, normal TLS result 0; Chromium TLS 1.3; HTTP 308; selected renewal dry-run/hook exit 0 |
+| Registration/email/login | Verification gate retained, actual VPS-mailbox delivery and signed HTTPS link pass; wrong password rejected and correct login succeeds |
+| Financial endpoint flow | User 1, payee 1, wallet 2; opening USD 1,000, income 250 (transaction 1), expense 50 (transaction 2) recorded |
+| Queue/report | Five pending jobs observed; worker processes the existing full-summary operation, cash 1,200. Initial cash 200 reproduced D02-F01 |
+| Deployment and rollback persistence | Same authenticated session, both transactions, USD 1,200 and shared storage marker survive code switches; no DB restore |
+| Proxy identity/CSRF | Correlated requests through both proxies/FPM; real client rate-limit count 1 versus spoofed 0; missing/foreign-origin CSRF request rejected 419 |
+| Browser/assets/cookies | 0 failed assets/page exceptions; two transaction comments visible; secure host-only public cookie; 0 cookies selected for alpha |
+| Secret paths | `/.env`, `/.git/config` 403; `/composer.json` 404 |
+| Scheduler/persistence | One enabled timer, owned services enabled/active, due minute commands DONE; no reboot performed |
+| Unrelated services/sites | 47 VPS / 22 home original Nginx files checked; only target VPS file changed. Four other sites return 200, Jenkins expected unauthenticated 403; old job config unchanged |
+| Mac independence | Trusted alpha health passes, local services remain running, managed Mac env hash unchanged |
+| Source checks | Shell/Python syntax and Jenkins linter pass; credential/staged protected-file checks pass; financial/schema/lock/license source unchanged |
 
-Raw evidence is under ignored `storage/app/kenfinly-local/evidence/`, with detailed command/stage logs and `timings.jsonl` in its parent. Screenshots `wallet-https.png`, `wallet-history-https.png` and `dashboard-https.png` were visually inspected; they still show inherited YAFFA branding. `docs/LOCAL_VERIFICATION.md` distinguishes browser interaction from authenticated endpoint verification and records initial diagnostic failures.
+Inspected screenshots: `public-dashboard.png`, `public-wallet.png`, `public-history.png` under private evidence. The built UI also displays the deployed b76d9c6b… reference. Browser verification used the already locked standalone Chromium because the in-app/Computer Use state connection was unavailable; no manual GUI pass is claimed.
 
-The fresh schema has 105 historical migration records; 61 migration source files are present. Day 02's status-list wording was imprecise; the dated report is retained, and no schema source was changed.
+Initial failures were retained and corrected: stale package indexes, missing curl extension, new build-order/CI-env mistake, project mysqldump option grouping, native FPM log destination, renewal invocation timeout and a private mail-link parser's trailing Markdown character. No application test was weakened to hide them.
 
 ## 4. Issues and Risks
 
-- **D02-F01:** fresh-account derived summaries can omit opening balance until the existing full-summary operation runs. Preserved as a baseline defect; no financial formula/schema correction included.
-- Existing translation checker baseline: **308 errors, 91 warnings**. Not fixed or represented as a passing check.
-- Tested native runtime differs from official Sail/CI. Full browser/Dusk, manual Safari, mobile/dark mode, nightly jobs and optional external integrations remain unverified.
-- Fifteen-minute onboarding is a conditional goal for a provisioned Mac. Cold downloads, fresh trust/tool installation, remote clone/ref publication and administrator time were not measured. No fresh-Mac claim is supported.
-- Helpers/docs are uncommitted and unpublished. A reviewed setup ref must be available before another developer can follow remote-clone onboarding.
-- UI remains YAFFA in many places; display rebranding, dependency distribution review, inherited release automation and production hardening remain separate work.
+- **Automatic change-triggered build is unverified.** Real scheduled polling reports the already-built develop SHA / “No changes”; all three execution causes are manual. No authorized push/new remote event was manufactured.
+- **External mail delivery is unverified.** Private SMTP/local VPS delivery works, but no external test recipient or sender-domain SPF/DKIM alignment has been verified. Verification remains enabled.
+- **D02-F01 remains open.** The stored opening 1,000 was missing from initial derived cash 200; explicit existing summary rebuild gives 1,200. Passing suites do not establish that the initialization defect is fixed.
+- Existing translation baseline remains 308 errors / 91 warnings. Full UI rebranding, full browser/Dusk/cross-browser/nightly integration coverage and real reboot testing remain unverified.
+- Existing broadly bound legacy database/Jenkins/tunnel ports predate this task. They were not changed as an unrelated hardening project; new project DB/FPM remain private.
+- The rollback drill changes release/Git identity with identical application/schema/lock content. It proves the mechanism and persistence, not compatibility of a future changed schema/application version.
 
 ## 5. Changes Made
 
-Project-local changes: ignored `.env` updated to the HTTPS/local service profile after backup; original APP_KEY retained. Existing dedicated database/credentials reused without reset. Added owned FPM, SMTP/catcher, queue/scheduler and opt-in Vite processes; private state stays under ignored storage. Reinstalled locked JS dependencies and regenerated build assets; reused Composer packages and local Chromium. No dependency version changes or global runtime installation.
+Home: dedicated release/shared directories and three non-login service identities; PHP 8.4 package/extension update; private Node installation; separate MySQL 13316 and scoped app/CI DBs; existing schema plus seven reviewed migrations on the new app DB; protected env/key/client files; dedicated FPM/queue/timer units; owned AppArmor paths, Nginx site/start ordering, narrow ingress rule and limited deployment sudo rules.
 
-Host integration: one marked loopback hosts block, one new Nginx site and leaf certificate from the already trusted local CA. The owner performed administrator activation. Shared Nginx was gracefully reloaded; its original master and all other configurations/services were preserved. No public DNS, production secret/database or Ubuntu configuration was used.
+VPS: only the target Nginx route/TLS configuration, certificate-specific renewal hook, a WireGuard-only SMTP listener/sender map, owned Postfix startup ordering and synthetic mailbox identity. Existing public certificate, peers/routes, mail services and unrelated site files remain preserved.
 
-Start/stop from the checkout:
+Jenkins: one new job and CI secret-file credential; existing GitHub SSH credential reused through storage; no global executor/runtime change or unrelated pipeline edit. The job is seeded with the reviewed Jenkinsfile until source publication is authorized.
 
-```bash
-./kenfinly-local up
-./kenfinly-local status
-./kenfinly-local dev start   # optional
-./kenfinly-local dev stop
-./kenfinly-local down       # keeps the database/data
-./kenfinly-local down --database  # also stops only the owned DB
-```
-
-Working URL: **https://alpha.my.kenfinly.com**. Local mail UI: `http://127.0.0.1:18025`. Services are left running in built-asset mode; no boot/login autostart was installed. Reset is never part of routine setup/start. Follow the explicitly destructive local-only procedure in onboarding only when intended.
+All task-created application data is synthetic and identified in verification docs. Test account password, signed links/cookies and complete env files are excluded from reports/Git. Capacity/load testing and unrelated scaling work were not performed.
 
 ## 6. Decisions Required
 
-- Review/publish the prepared setup change set before inviting another developer to clone it.
-- Approve a separate focused correction/regression scope for D02-F01, and prioritize translation repairs separately.
-- Select the continuing team runtime policy: this measured native profile or official Sail/CI parity for subsequent engineering.
-- Approve brand assets/display-rebranding scope and any future release/deployment separately. No approval is needed to use the currently prepared local site.
+- Approve/review publication of local automation commits to remote develop, then verify an actual SCM-change-triggered deployment and optionally switch definition loading to SCM.
+- Provide a dedicated external recipient and decide sender-domain DNS alignment or dedicated SMTP if external delivery verification is required now.
+- Approve a focused D02-F01 regression/fix scope before real-data financial release sign-off; keep formula/schema constraints explicit.
+- Prioritize translations and display branding separately. No further approval is needed to inspect/use the current synthetic public deployment.
 
 ## 7. Next-Day Plan
 
-1. Review and publish the setup branch; run the onboarding guide from a clean checkout on a second provisioned Apple Silicon Mac and measure the entire sequence, including download/admin boundaries.
-2. Reproduce and scope D02-F01 with a meaningful regression test before changing account-summary behavior; preserve financial formulas/schema constraints.
-3. Agree the runtime matrix and run corresponding CI/Sail checks; complete remaining browser coverage where required.
-4. Address translations in a bounded follow-up, then resume approved display branding with MIT/history/upstream safeguards.
-5. Continue the same dated daily-report format, archiving this report. No unattended daily automation was created.
+1. After authorized publication, observe one real develop-change trigger through successful build/publication and record its actual cause/SHA.
+2. Verify external email delivery with an approved recipient/sender configuration; keep verification enabled.
+3. Address D02-F01 through a bounded regression and approved implementation, then repeat the unassisted account-opening/report flow.
+4. Complete any required remaining browser/integration/reboot verification during an approved maintenance window. Do not reboot a shared host merely for this report.
+5. Continue the same reporting format; address translations/approved branding next. Capacity work waits for its own later task.
 
 ## 8. Release Readiness
 
-**Ready for continued isolated local development.** Trusted HTTPS, registration/login, local session isolation, real account/transaction endpoints, restart persistence, background processing, mail capture, HMR, build and existing PHP/JS tests have executed evidence. The original data/key and unrelated projects are preserved.
+**Operational deployment and manual CI/CD are verified.** DNS/TLS, real proxy/tunnel path, secure sessions, synthetic auth/financial endpoints, local verification mail, worker/scheduler, Linux checks and code rollback have actual evidence. Public source is b76d9c6b… and the Mac remains independent.
 
-**Not ready for production or a release.** The initial account-summary defect and translation failures remain, complete onboarding on another Mac and official runtime/full browser parity are unverified, runtime UI branding is incomplete, and setup publication/release review remain pending. No deployment or production change was performed.
+**Full sign-off is blocked.** Actual new-commit triggering, external mail deliverability and the known opening-summary initialization defect remain unresolved. No real-data financial release approval, Git push, database rewind, capacity claim or reboot proof is implied.
