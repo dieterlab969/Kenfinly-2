@@ -1,4 +1,43 @@
-# Yet Another Free Financial Application (YAFFA 🍊)
+# KENFINLY
+
+**Know Your Money.**
+
+Kenfinly 2.0 is being prepared as a fork of [YAFFA](https://github.com/kantorge/yaffa),
+the Yet Another Free Financial Application personal finance application.
+The repository is currently in the audit and rebranding planning stage; the application itself still uses its inherited YAFFA branding.
+
+## Original project attribution
+
+YAFFA was created by Gergely Kántor and developed with contributions from the upstream community.
+The original project is distributed under the [MIT license](LICENSE), including the original
+`Copyright (c) 2021 Gergely Kántor` notice. That license and the existing Git history are preserved.
+KENFINLY identifies this downstream product; it does not imply endorsement by the YAFFA maintainers.
+
+- Upstream repository: [kantorge/yaffa](https://github.com/kantorge/yaffa).
+- Kenfinly repository: [dieterlab969/Kenfinly-2](https://github.com/dieterlab969/Kenfinly-2).
+- Audited starting commit: `e3936669c7906550024f56e61aca80cf0d834da8` on `develop`.
+- This clone retains `origin` for Kenfinly and a fetch-enabled `upstream` remote for YAFFA, with its local push URL disabled.
+  Remote settings are local to each clone; see [CHANGE_PLAN.md](CHANGE_PLAN.md) for setup instructions.
+
+## Kenfinly rebranding documents
+
+- [Change plan and rollback procedures](CHANGE_PLAN.md)
+- [Repository audit](REPOSITORY_AUDIT.md)
+- [Branding specification](BRANDING_SPEC.md)
+- [License review](LICENSE_REVIEW.md)
+- [Day 01 report](DAY_01_REPORT.md)
+- [Day 02 local setup and verification report](DAY_02_REPORT.md)
+- [Day 03 HTTPS local setup report](DAY_03_REPORT.md)
+- [Local onboarding for Apple Silicon](docs/ONBOARDING.md)
+- [Local verification evidence and timings](docs/LOCAL_VERIFICATION.md)
+- [Latest daily engineering report](DAILY_REPORT.md)
+
+## Inherited YAFFA documentation
+
+The sections below describe the upstream application. Links to YAFFA documentation and its sandbox
+remain upstream resources; they are not Kenfinly services or a statement of Kenfinly's future roadmap.
+
+**Yet Another Free Financial Application (YAFFA 🍊)**
 
 ## About Yaffa
 

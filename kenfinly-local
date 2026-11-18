@@ -1,0 +1,498 @@
+#!/usr/bin/python3
+"""Project-scoped Apple Silicon development services. No third-party Python modules."""
+
+import argparse
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import secrets
+import shlex
+import signal
+import socket
+import subprocess
+import sys
+import time
+
+ROOT = Path(__file__).resolve().parent
+STATE = ROOT / "storage/app/kenfinly-local"
+STATE_FILE = STATE / "state.json"
+HOST = "alpha.my.kenfinly.com"
+URL = "https://" + HOST
+PHP = Path("/opt/homebrew/opt/php/bin/php")
+FPM = Path("/opt/homebrew/opt/php/sbin/php-fpm")
+MYSQL = Path("/opt/homebrew/opt/mysql/bin/mysql")
+MYSQLD = Path("/opt/homebrew/opt/mysql/bin/mysqld")
+MYSQLADMIN = Path("/opt/homebrew/opt/mysql/bin/mysqladmin")
+NGINX = Path("/opt/homebrew/bin/nginx")
+SITE = Path("/opt/homebrew/etc/nginx/servers/alpha.my.kenfinly.com.conf")
+CERT = STATE / "tls/alpha.my.kenfinly.com.pem"
+KEY = STATE / "tls/alpha.my.kenfinly.com-key.pem"
+MARKER = "# Managed by Kenfinly local: " + str(ROOT)
+PATH = "/opt/homebrew/opt/php/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+
+def fail(message):
+    raise RuntimeError(message)
+
+
+def environment(extra=None):
+    """Do not inherit unrelated DB, mail relay, cloud credentials or TLS overrides."""
+    values = {key: os.environ[key] for key in ("HOME", "USER", "LOGNAME", "TMPDIR", "LANG") if key in os.environ}
+    values.update({"PATH": PATH, "COMPOSER_HOME": str(STATE / "composer-home"),
+                   "COMPOSER_CACHE_DIR": str(STATE / "composer-cache"),
+                   "npm_config_cache": str(STATE / "npm-cache"),
+                   "PLAYWRIGHT_BROWSERS_PATH": str(ROOT / "storage/app/day02-local/playwright"
+                                                  if (ROOT / "storage/app/day02-local/playwright").exists()
+                                                  else STATE / "playwright")})
+    ca_certificate = Path.home() / "Library/Application Support/mkcert/rootCA.pem"
+    if STATE_FILE.exists():
+        ca_certificate = Path(json.loads(STATE_FILE.read_text()).get("ca_certificate", str(ca_certificate)))
+    if ca_certificate.exists():
+        values["NODE_EXTRA_CA_CERTS"] = str(ca_certificate)
+    if extra:
+        values.update(extra)
+    return values
+
+
+def run(arguments, label=None, capture=False, input_text=None, extra=None):
+    arguments = [str(value) for value in arguments]
+    started = time.monotonic()
+    if label:
+        print("Running " + label + "...", flush=True)
+        with (STATE / (label + ".log")).open("a") as output:
+            result = subprocess.run(arguments, cwd=ROOT, env=environment(extra), input=input_text,
+                                    text=True, stdout=output, stderr=subprocess.STDOUT)
+    else:
+        result = subprocess.run(arguments, cwd=ROOT, env=environment(extra), input=input_text,
+                                text=True, stdout=subprocess.PIPE if capture else None,
+                                stderr=subprocess.PIPE if capture else None)
+    elapsed = round(time.monotonic() - started, 3)
+    if label:
+        with (STATE / "timings.jsonl").open("a") as output:
+            output.write(json.dumps({"step": label, "seconds": elapsed, "exit_code": result.returncode}) + "\n")
+    if result.returncode:
+        detail = "See " + str(STATE / (label + ".log")) if label else (result.stderr or "command failed")
+        fail("Command failed ({}): {}".format(result.returncode, detail.strip()))
+    return result.stdout if capture else ""
+
+
+def private_write(path, contents):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp-" + secrets.token_hex(4))
+    descriptor = os.open(str(temporary), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w") as output:
+        output.write(contents)
+    temporary.replace(path)
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def load_state():
+    if not STATE_FILE.exists():
+        fail("Run ./kenfinly-local setup first.")
+    value = json.loads(STATE_FILE.read_text())
+    if value.get("root") != str(ROOT):
+        fail("Local state belongs to another checkout; refusing to adopt it.")
+    if not all(Path(value[key]).resolve().is_relative_to(ROOT / "storage/app") for key in ("data", "admin")):
+        fail("Database ownership paths must remain inside this checkout's ignored storage.")
+    if not value["socket"].startswith("/private/tmp/kenfinly-"):
+        fail("Unexpected database socket in local state.")
+    return value
+
+
+def save_state(value):
+    private_write(STATE_FILE, json.dumps(value, indent=2) + "\n")
+
+
+def read_env():
+    values = {}
+    if (ROOT / ".env").exists():
+        for line in (ROOT / ".env").read_text().splitlines():
+            if line and not line.lstrip().startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                values[key.strip()] = value.strip().strip("\"'")
+    return values
+
+
+def require_local(state):
+    values = read_env()
+    expected = {"APP_ENV": "local", "APP_URL": URL, "ASSET_URL": URL,
+                "DB_CONNECTION": "mysql", "DB_HOST": "127.0.0.1",
+                "DB_PORT": "13316", "DB_DATABASE": state["database"], "DB_SOCKET": state["socket"],
+                "SESSION_COOKIE": "__Host-kenfinly_alpha_session", "SESSION_DOMAIN": "null",
+                "SESSION_SECURE_COOKIE": "true", "MAIL_MAILER": "smtp", "MAIL_HOST": "127.0.0.1",
+                "MAIL_PORT": "11025", "QUEUE_CONNECTION": "database"}
+    for key, value in expected.items():
+        if values.get(key) != value:
+            fail("Unsafe or unexpected local setting: " + key + ". Nothing was changed.")
+    if values.get("DB_URL") or values.get("DATABASE_URL"):
+        fail("Remove/review database URL overrides before local operations.")
+    return values
+
+
+def sql(state, query, bootstrap=False):
+    if bootstrap:
+        arguments = [MYSQL, "--no-defaults", "--protocol=SOCKET", "--socket=" + state["socket"], "--user=root"]
+    else:
+        arguments = [MYSQL, "--defaults-file=" + state["admin"], "--protocol=SOCKET", "--socket=" + state["socket"]]
+    return run(arguments + ["--batch", "--skip-column-names"], capture=True, input_text=query)
+
+
+def listening(port):
+    with socket.socket() as connection:
+        connection.settimeout(0.25)
+        return connection.connect_ex(("127.0.0.1", port)) == 0
+
+
+def mysql_arguments(state):
+    return [MYSQLD, "--no-defaults", "--basedir=/opt/homebrew/opt/mysql", "--datadir=" + state["data"],
+            "--bind-address=127.0.0.1", "--port=13316", "--mysqlx=OFF", "--socket=" + state["socket"],
+            "--pid-file=" + state["mysql_pid"], "--log-error=" + state["mysql_log"],
+            "--skip-log-bin", "--innodb-buffer-pool-size=67108864", "--max-connections=30", "--daemonize"]
+
+
+def database_ready(state):
+    observed = sql(state, "SELECT @@datadir, @@port;").strip().split("\t")
+    if len(observed) != 2 or Path(observed[0]).resolve() != Path(state["data"]).resolve() or observed[1] != "13316":
+        fail("Database identity mismatch; refusing this server.")
+
+
+def start_database(state):
+    if Path(state["socket"]).exists() or listening(13316):
+        database_ready(state)
+        return
+    run(mysql_arguments(state), label="mysql-start")
+    database_ready(state)
+
+
+def initialize_database(values):
+    legacy = ROOT / "storage/app/day02-local/mysql"
+    if values:
+        if values.get("DB_HOST") != "127.0.0.1" or values.get("DB_PORT") != "13316" or values.get("DB_DATABASE") != "kenfinly_day02":
+            fail("Existing .env is not the known isolated Day 02 database. Review it manually; refusing to overwrite it.")
+        if not (legacy / "admin.cnf").exists() or values.get("DB_SOCKET") != "/private/tmp/kenfinly-day02-mysql.sock":
+            fail("The existing Day 02 database ownership configuration is missing.")
+        state = {"root": str(ROOT), "database": "kenfinly_day02", "user": values["DB_USERNAME"],
+                 "socket": values["DB_SOCKET"], "data": str(legacy / "data"), "admin": str(legacy / "admin.cnf"),
+                 "mysql_pid": str(legacy / "server.pid"), "mysql_log": str(legacy / "server.log")}
+        start_database(state)
+        return state, values["DB_PASSWORD"]
+    data = STATE / "mysql/data"
+    if data.exists() and any(data.iterdir()):
+        fail("Unmanaged nonempty MySQL data directory found. Refusing initialization.")
+    data.mkdir(parents=True, exist_ok=True)
+    state = {"root": str(ROOT), "database": "kenfinly_local", "user": "kenfinly_local",
+             "socket": "/private/tmp/kenfinly-" + hashlib.sha256(str(ROOT).encode()).hexdigest()[:10] + ".sock",
+             "data": str(data), "admin": str(STATE / "mysql/admin.cnf"),
+             "mysql_pid": str(STATE / "mysql/server.pid"), "mysql_log": str(STATE / "mysql/server.log")}
+    if listening(13316) or Path(state["socket"]).exists():
+        fail("MySQL port/socket is already occupied; nothing was initialized.")
+    run([MYSQLD, "--no-defaults", "--initialize-insecure", "--basedir=/opt/homebrew/opt/mysql",
+         "--datadir=" + state["data"], "--innodb-buffer-pool-size=67108864"], label="mysql-initialize")
+    run(mysql_arguments(state) + ["--skip-networking"], label="mysql-bootstrap")
+    password, admin_password = secrets.token_hex(24), secrets.token_hex(24)
+    query = ("CREATE DATABASE kenfinly_local CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n"
+             "CREATE DATABASE testing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n"
+             "CREATE USER 'kenfinly_local'@'localhost' IDENTIFIED BY '" + password + "';\n"
+             "GRANT ALL PRIVILEGES ON kenfinly_local.* TO 'kenfinly_local'@'localhost';\n"
+             "CREATE USER 'default'@'localhost' IDENTIFIED BY 'password';\n"
+             "GRANT ALL PRIVILEGES ON testing.* TO 'default'@'localhost';\n"
+             "ALTER USER 'root'@'localhost' IDENTIFIED BY '" + admin_password + "';\n")
+    sql(state, query, bootstrap=True)
+    private_write(Path(state["admin"]), "[client]\nuser=root\npassword=" + admin_password + "\nsocket=" + state["socket"] + "\nprotocol=SOCKET\n")
+    run([MYSQLADMIN, "--defaults-file=" + state["admin"], "--protocol=SOCKET", "--socket=" + state["socket"], "shutdown"])
+    start_database(state)
+    return state, password
+
+
+def doctor():
+    for executable in (PHP, FPM, MYSQL, MYSQLD, MYSQLADMIN, NGINX, Path("/opt/homebrew/bin/node"),
+                       Path("/opt/homebrew/bin/composer"), Path("/opt/homebrew/bin/mkcert"), Path("/opt/homebrew/bin/mailpit")):
+        if not executable.exists():
+            fail("Missing prerequisite: " + str(executable) + ". See docs/ONBOARDING.md; no global install was attempted.")
+    if sys.platform != "darwin" or os.uname().machine != "arm64":
+        fail("This helper is for the documented Apple Silicon macOS environment.")
+    for arguments in ([PHP, "-v"], [PHP, "/opt/homebrew/bin/composer", "--version"],
+                      ["/opt/homebrew/bin/node", "--version"], [MYSQL, "--version"]):
+        print(run(arguments, capture=True).splitlines()[0])
+    print("Python", sys.version.split()[0], "| Checkout:", ROOT)
+
+
+def configure_env(values, state, password):
+    updates = {"APP_NAME": "KENFINLY", "APP_ENV": "local", "APP_DEBUG": "true", "APP_URL": URL,
+               "ASSET_URL": URL, "APP_TIMEZONE": "UTC", "APP_LOCALE": "en", "APP_FALLBACK_LOCALE": "en",
+               "DB_CONNECTION": "mysql", "DB_HOST": "127.0.0.1", "DB_PORT": "13316", "DB_DATABASE": state["database"],
+               "DB_USERNAME": state["user"], "DB_PASSWORD": password, "DB_SOCKET": state["socket"],
+               "DB_URL": "", "DATABASE_URL": "", "CACHE_STORE": "file", "CACHE_PREFIX": "kenfinly_alpha_cache_",
+               "QUEUE_CONNECTION": "database", "DB_QUEUE_RETRY_AFTER": "300", "SESSION_DRIVER": "file",
+               "SESSION_COOKIE": "__Host-kenfinly_alpha_session", "SESSION_DOMAIN": "null", "SESSION_PATH": "/",
+               "SESSION_SECURE_COOKIE": "true", "SESSION_HTTP_ONLY": "true", "SESSION_SAME_SITE": "lax",
+               "SANCTUM_STATEFUL_DOMAINS": HOST, "MAIL_MAILER": "smtp", "MAIL_SCHEME": "smtp", "MAIL_HOST": "127.0.0.1",
+               "MAIL_PORT": "11025", "MAIL_USERNAME": "null", "MAIL_PASSWORD": "null",
+               "MAIL_FROM_ADDRESS": "dev@alpha.my.kenfinly.com", "MAIL_FROM_NAME": "KENFINLY",
+               "ADMIN_EMAIL": "", "INCOMING_RECEIPTS_EMAIL": "", "RUNS_SCHEDULER": "true", "SANDBOX_MODE": "false",
+               "REGISTERED_USER_LIMIT": "0", "EMAIL_VERIFICATION_REQUIRED": "false", "TELESCOPE_ENABLED": "false",
+               "DEBUGBAR_ENABLED": "false", "BROADCAST_CONNECTION": "log"}
+    if not values.get("APP_KEY"):
+        updates["APP_KEY"] = ""
+    lines = (ROOT / ".env").read_text().splitlines() if (ROOT / ".env").exists() else []
+    for index, line in enumerate(lines):
+        key = line.split("=", 1)[0] if "=" in line else None
+        if key in updates:
+            lines[index] = key + "=" + updates.pop(key)
+    lines.extend(key + "=" + value for key, value in updates.items())
+    private_write(ROOT / ".env", "\n".join(lines) + "\n")
+
+
+def setup(adopt=False, seed=False):
+    doctor()
+    current = read_env()
+    existing = load_state() if STATE_FILE.exists() else None
+    if current and (not existing or digest(ROOT / ".env") != existing.get("env_hash")) and not adopt:
+        fail("An existing or edited .env is preserved. Review it, then use setup --adopt-existing-env to explicitly back it up and adopt it.")
+    if current and current.get("APP_ENV") != "local":
+        fail("Refusing to adopt an environment that is not APP_ENV=local.")
+    for key, value in current.items():
+        if value and (key in ("DB_URL", "DATABASE_URL") or key.endswith("API_KEY")):
+            fail("Review/remove external secret or database URL before local adoption: " + key)
+    if current:
+        backup = STATE / ("backups/env-" + str(time.time_ns()))
+        private_write(backup, (ROOT / ".env").read_text())
+    if existing:
+        state = existing
+        require_local(state)
+        start_database(state)
+        password = current["DB_PASSWORD"]
+    else:
+        state, password = initialize_database(current)
+    configure_env(current, state, password)
+    state["env_hash"] = digest(ROOT / ".env")
+    save_state(state)
+    run([PHP, "/opt/homebrew/bin/composer", "install", "--prefer-dist", "--no-interaction", "--no-progress", "--no-scripts"], label="composer-install")
+    run([PHP, "/opt/homebrew/bin/composer", "check-platform-reqs"], label="platform-check")
+    if not read_env().get("APP_KEY"):
+        run([PHP, ROOT / "artisan", "key:generate", "--no-interaction"], label="key-generate")
+    run([PHP, "/opt/homebrew/bin/composer", "run-script", "post-autoload-dump", "--no-interaction"], label="package-discovery")
+    run([PHP, ROOT / "artisan", "config:clear", "--no-interaction"], label="config-clear")
+    run([PHP, ROOT / "artisan", "migrate", "--no-interaction"], label="migrate")
+    run(["/opt/homebrew/bin/npm", "ci", "--no-audit", "--no-fund"], label="npm-ci")
+    run(["/opt/homebrew/bin/npm", "run", "build"], label="build")
+    if seed:
+        seed_demo(state)
+    ca_root = run(["/opt/homebrew/bin/mkcert", "-CAROOT"], capture=True).strip()
+    run(["/usr/bin/security", "verify-cert", "-c", str(Path(ca_root) / "rootCA.pem")], label="ca-trust")
+    if CERT.exists() != KEY.exists():
+        fail("Incomplete existing TLS files; inspect them manually rather than overwriting.")
+    if not CERT.exists():
+        CERT.parent.mkdir(parents=True, exist_ok=True)
+        run(["/opt/homebrew/bin/mkcert", "-cert-file", CERT, "-key-file", KEY, HOST], label="certificate")
+        KEY.chmod(0o600)
+    for template, destination in (("php-fpm.conf.template", STATE / "php-fpm.conf"),
+                                  ("nginx.conf.template", STATE / "nginx.conf")):
+        contents = (ROOT / "docker/local" / template).read_text().replace("@ROOT@", str(ROOT)).replace("@STATE@", str(STATE))
+        private_write(destination, contents)
+    desired = (STATE / "nginx.conf").read_text()
+    if SITE.exists() and SITE.read_text() != desired:
+        if not existing or digest(SITE) != existing.get("site_hash"):
+            fail("An unrelated or edited Nginx site is preserved: " + str(SITE))
+        private_write(STATE / ("backups/nginx-" + str(time.time_ns())), SITE.read_text())
+    site_changed = not SITE.exists() or SITE.read_text() != desired
+    if site_changed:
+        SITE.write_text(desired)
+    run([NGINX, "-t", "-g", "pid " + str(STATE / "nginx-check.pid") + ";"], label="nginx-check")
+    state.update({"env_hash": digest(ROOT / ".env"), "site_hash": digest(SITE),
+                  "ca_certificate": str(Path(ca_root) / "rootCA.pem")})
+    save_state(state)
+    print("Prepared local configuration without resetting existing data.")
+    if site_changed:
+        print("Administrator activation (hosts + checked graceful Nginx reload):")
+        print("sudo /bin/sh " + shlex.quote(str(ROOT / "docker/local/activate.sh")))
+    else:
+        print("Nginx site unchanged; no further administrator reload is needed if already activated.")
+
+
+def seed_demo(state):
+    require_local(state)
+    count = sql(state, "SELECT COUNT(*) FROM `" + state["database"] + "`.users;").strip()
+    if count != "0":
+        fail("Development database already has users; refusing to reseed or reset it.")
+    run([PHP, ROOT / "artisan", "db:seed", "--no-interaction"], label="seed-demo")
+
+
+def process_alive(name):
+    record = STATE / (name + ".pid")
+    if not record.exists():
+        return None
+    pid = int(record.read_text().strip())
+    result = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "command="], text=True, capture_output=True)
+    if result.returncode:
+        return None
+    if str(ROOT) not in result.stdout:
+        fail("PID ownership mismatch for " + name + "; refusing to signal it.")
+    return pid
+
+
+def start_process(name, command, port=None):
+    if process_alive(name):
+        print(name + " is already running.")
+        return
+    if port and listening(port):
+        fail("Port {} is already occupied; refusing to replace its process.".format(port))
+    with (STATE / (name + ".log")).open("a") as output:
+        process = subprocess.Popen([str(value) for value in command], cwd=ROOT, env=environment(),
+                                   stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
+    private_write(STATE / (name + ".pid"), str(process.pid) + "\n")
+    deadline = time.monotonic() + 12
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            fail(name + " exited; inspect " + str(STATE / (name + ".log")))
+        if not port or listening(port):
+            print("Started " + name + ".")
+            return
+        time.sleep(0.1)
+    fail(name + " did not become ready; inspect its project log.")
+
+
+def stop_process(name):
+    pid = process_alive(name)
+    if pid:
+        if os.getpgid(pid) != pid:
+            fail("Process-group ownership mismatch for " + name)
+        os.killpg(pid, signal.SIGTERM)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and process_alive(name):
+            time.sleep(0.1)
+        if process_alive(name):
+            fail(name + " did not stop; no force-kill was attempted.")
+    (STATE / (name + ".pid")).unlink(missing_ok=True)
+    if name == "vite" and (ROOT / "public/hot").exists():
+        if (ROOT / "public/hot").read_text().strip() == URL + ":15173":
+            (ROOT / "public/hot").unlink()
+        else:
+            fail("An unrelated public/hot file was preserved; inspect it manually.")
+
+
+def worker(start):
+    if start:
+        start_process("worker", [PHP, ROOT / "artisan", "queue:work", "database", "--queue=default", "--sleep=1", "--tries=1", "--timeout=240", "--no-interaction"])
+    else:
+        stop_process("worker")
+
+
+def up():
+    state = load_state()
+    require_local(state)
+    start_database(state)
+    start_process("mailpit", ["/opt/homebrew/bin/mailpit", "--database", STATE / "mailpit.sqlite", "--smtp", "127.0.0.1:11025",
+                              "--listen", "127.0.0.1:18025", "--disable-version-check", "--label", "KENFINLY local"], 11025)
+    run([FPM, "-t", "-y", STATE / "php-fpm.conf"], label="fpm-check")
+    start_process("fpm", [FPM, "--nodaemonize", "--fpm-config", STATE / "php-fpm.conf"], 19085)
+    worker(True)
+    start_process("scheduler", [PHP, ROOT / "artisan", "schedule:work", "--no-interaction"])
+    print("Project processes running. HTTPS requires the one-time administrator activation.")
+
+
+def down(database=False):
+    for name in ("vite", "scheduler", "worker", "fpm", "mailpit"):
+        stop_process(name)
+    if database:
+        state = load_state()
+        database_ready(state)
+        run([MYSQLADMIN, "--defaults-file=" + state["admin"], "--protocol=SOCKET", "--socket=" + state["socket"], "shutdown"])
+    print("Stopped owned services; all data and other projects were preserved.")
+
+
+def tests():
+    state = load_state()
+    require_local(state)
+    database_ready(state)
+    extra = {"APP_ENV": "testing", "APP_URL": "http://localhost", "ASSET_URL": "", "DB_DATABASE": "testing",
+             "DB_USERNAME": "default", "DB_PASSWORD": "password", "DB_HOST": "127.0.0.1", "DB_PORT": "13316",
+             "DB_SOCKET": state["socket"], "INCOMING_RECEIPTS_EMAIL": "receipts@yaffa.test", "SESSION_SECURE_COOKIE": "false",
+             "SESSION_COOKIE": "kenfinly_test_session", "RUNS_SCHEDULER": "false"}
+    run([PHP, "-d", "memory_limit=1G", ROOT / "vendor/bin/pest", "--compact", "--colors=never"], label="test-php", extra=extra)
+    run(["/opt/homebrew/bin/npm", "run", "test:js"], label="test-js")
+
+
+def main():
+    os.umask(0o077)
+    STATE.mkdir(parents=True, exist_ok=True)
+    (STATE / "backups").mkdir(exist_ok=True)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=["doctor", "setup", "up", "down", "restart", "status", "dev", "worker", "php", "npm", "seed-demo", "test", "browser-install", "verify", "db-info"])
+    arguments, rest = parser.parse_known_args()
+    if arguments.command in ("doctor", "up", "restart", "status", "seed-demo", "test", "browser-install", "verify", "db-info") and rest:
+        fail("Unexpected arguments for " + arguments.command)
+    if arguments.command == "doctor":
+        doctor()
+    elif arguments.command == "setup":
+        if any(value not in ("--adopt-existing-env", "--seed-demo") for value in rest):
+            fail("Unknown setup flag.")
+        setup("--adopt-existing-env" in rest, "--seed-demo" in rest)
+    elif arguments.command in ("php", "npm"):
+        state = load_state()
+        require_local(state)
+        if arguments.command == "php":
+            database_ready(state)
+        run(([PHP] if arguments.command == "php" else ["/opt/homebrew/bin/npm"]) + rest)
+    elif arguments.command == "up":
+        up()
+    elif arguments.command == "down":
+        if rest not in ([], ["--database"]):
+            fail("Usage: down [--database]")
+        down("--database" in rest)
+    elif arguments.command == "restart":
+        down()
+        up()
+    elif arguments.command == "worker":
+        require_local(load_state())
+        if rest not in (["start"], ["stop"]):
+            fail("Usage: worker start|stop")
+        worker(rest == ["start"])
+    elif arguments.command == "dev":
+        require_local(load_state())
+        if rest == ["stop"]:
+            stop_process("vite")
+        elif rest in ([], ["start"]):
+            if (ROOT / "public/hot").exists() and not process_alive("vite"):
+                fail("Existing public/hot is preserved. Review/remove only a known stale local hot file.")
+            start_process("vite", ["/opt/homebrew/bin/node", ROOT / "node_modules/vite/bin/vite.js", "--config", ROOT / "docker/local/vite.config.mjs"], 15173)
+        else:
+            fail("Usage: dev [start|stop]")
+    elif arguments.command == "seed-demo":
+        seed_demo(load_state())
+    elif arguments.command == "test":
+        tests()
+    elif arguments.command == "db-info":
+        state = load_state()
+        require_local(state)
+        database_ready(state)
+        print(json.dumps({"host": "127.0.0.1", "port": 13316, "database": state["database"], "data_directory": state["data"]}, indent=2))
+    elif arguments.command == "browser-install":
+        require_local(load_state())
+        run(["/opt/homebrew/bin/node", ROOT / "node_modules/playwright/cli.js", "install", "chromium"], label="browser-install")
+    elif arguments.command == "verify":
+        require_local(load_state())
+        database_ready(load_state())
+        run(["/opt/homebrew/bin/node", "--use-system-ca", ROOT / "docker/local/verify.mjs"], label="verify-browser")
+    else:
+        state = load_state()
+        require_local(state)
+        database_ready(state)
+        for name in ("fpm", "mailpit", "worker", "scheduler", "vite"):
+            print(name + ": " + ("running" if process_alive(name) else "stopped"))
+        run(["/bin/sh", ROOT / "docker/local/hostname.sh", "--check"])
+        run(["/usr/bin/curl", "--fail", "--silent", "--show-error", "--max-time", "10", "--output", "/dev/null", URL + "/up"])
+        print("Trusted HTTPS health check passed: " + URL)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError) as error:
+        print("ERROR: " + str(error), file=sys.stderr)
+        sys.exit(1)

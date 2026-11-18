@@ -1,0 +1,47 @@
+# Managed by Kenfinly local: @ROOT@
+# Existing shared listeners stay unchanged; this virtual host accepts loopback clients only.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name alpha.my.kenfinly.com;
+    allow 127.0.0.1;
+    allow ::1;
+    deny all;
+    location / { return 308 https://alpha.my.kenfinly.com$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name alpha.my.kenfinly.com;
+    allow 127.0.0.1;
+    allow ::1;
+    deny all;
+    root "@ROOT@/public";
+    index index.php;
+    charset utf-8;
+    client_max_body_size 100m;
+    server_tokens off;
+
+    ssl_certificate "@STATE@/tls/alpha.my.kenfinly.com.pem";
+    ssl_certificate_key "@STATE@/tls/alpha.my.kenfinly.com-key.pem";
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    location / { try_files $uri $uri/ /index.php?$query_string; }
+    location ~ \.php$ {
+        try_files $uri =404;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_param HTTPS on;
+        fastcgi_param SERVER_PORT 443;
+        fastcgi_param HTTP_PROXY "";
+        fastcgi_pass 127.0.0.1:19085;
+        fastcgi_hide_header X-Powered-By;
+    }
+    location ~ /\.(?!well-known).* { deny all; }
+}
