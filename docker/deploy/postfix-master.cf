@@ -1,0 +1,10 @@
+# BEGIN KENFINLY2 WIREGUARD SMTP
+10.0.0.1:2525 inet n - y - - smtpd
+  -o mynetworks=10.0.0.2/32
+  -o smtpd_client_restrictions=permit_mynetworks,reject
+  -o smtpd_relay_restrictions=permit_mynetworks,reject
+  -o smtpd_recipient_restrictions=permit_mynetworks,reject
+  -o smtpd_sender_restrictions=check_sender_access,hash:/etc/postfix/kenfinly2-senders,reject
+  -o smtpd_sasl_auth_enable=no
+  -o smtpd_tls_security_level=none
+# END KENFINLY2 WIREGUARD SMTP

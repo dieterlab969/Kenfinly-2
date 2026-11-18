@@ -1,0 +1,24 @@
+[Unit]
+Description=Kenfinly 2 isolated PHP 8.4 FPM
+After=network.target kenfinly-mysql.service
+Requires=kenfinly-mysql.service
+
+[Service]
+Type=simple
+User=kenfinly
+Group=kenfinly
+RuntimeDirectory=kenfinly-fpm
+ExecStartPre=/usr/sbin/php-fpm8.4 --test --fpm-config /etc/kenfinly/php-fpm.conf
+ExecStart=/usr/sbin/php-fpm8.4 --nodaemonize --fpm-config /etc/kenfinly/php-fpm.conf
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=on-failure
+RestartSec=2
+UMask=0007
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/www/kenfinly-2-deploy/shared/storage /var/www/kenfinly-2-deploy/releases
+
+[Install]
+WantedBy=multi-user.target

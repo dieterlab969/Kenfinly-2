@@ -1,0 +1,17 @@
+[Unit]
+Description=Kenfinly 2 single scheduler invocation
+After=kenfinly-mysql.service
+
+[Service]
+Type=oneshot
+User=kenfinly
+Group=kenfinly
+WorkingDirectory=/var/www/kenfinly-2-deploy/current
+ExecStart=/usr/bin/php8.4 artisan schedule:run --no-interaction
+TimeoutStartSec=300
+UMask=0007
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/www/kenfinly-2-deploy/shared/storage /var/www/kenfinly-2-deploy/releases

@@ -1,0 +1,14 @@
+[mysqld]
+datadir=/var/lib/kenfinly-mysql
+socket=/run/kenfinly-mysql/mysql.sock
+pid-file=/run/kenfinly-mysql/mysql.pid
+log-error=/var/lib/kenfinly-mysql/error.log
+bind-address=127.0.0.1
+port=13316
+mysqlx=0
+skip-name-resolve
+skip-log-bin
+innodb-buffer-pool-size=134217728
+max-connections=30
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci

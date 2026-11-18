@@ -1,0 +1,24 @@
+[Unit]
+Description=Kenfinly 2 database queue worker
+After=network.target kenfinly-mysql.service
+Requires=kenfinly-mysql.service
+
+[Service]
+Type=simple
+User=kenfinly
+Group=kenfinly
+WorkingDirectory=/var/www/kenfinly-2-deploy/current
+ExecStart=/usr/bin/php8.4 artisan queue:work database --queue=default --sleep=2 --tries=3 --timeout=240 --max-time=3600 --no-interaction
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=300
+UMask=0007
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/www/kenfinly-2-deploy/shared/storage /var/www/kenfinly-2-deploy/releases
+
+[Install]
+WantedBy=multi-user.target

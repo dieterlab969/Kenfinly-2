@@ -1,0 +1,23 @@
+[Unit]
+Description=Kenfinly 2 dedicated local MySQL instance
+After=network.target
+
+[Service]
+Type=simple
+User=kenfinly-db
+Group=kenfinly-db
+RuntimeDirectory=kenfinly-mysql
+RuntimeDirectoryMode=0750
+ExecStart=/usr/sbin/mysqld --defaults-file=/etc/mysql/kenfinly.cnf
+Restart=on-failure
+TimeoutStopSec=180
+LimitNOFILE=10000
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/kenfinly-mysql /run/kenfinly-mysql
+
+[Install]
+WantedBy=multi-user.target

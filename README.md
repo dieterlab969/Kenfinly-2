@@ -4,7 +4,9 @@
 
 Kenfinly 2.0 is being prepared as a fork of [YAFFA](https://github.com/kantorge/yaffa),
 the Yet Another Free Financial Application personal finance application.
-The repository is currently in the audit and rebranding planning stage; the application itself still uses its inherited YAFFA branding.
+The project has isolated Mac development and a public Ubuntu verification deployment.
+The application still uses inherited YAFFA UI branding; full display rebranding remains planned.
+Deployment was exercised with synthetic data. See the verification record for the opening-summary defect and pending external-email/automatic-trigger checks.
 
 ## Original project attribution
 
@@ -31,6 +33,15 @@ KENFINLY identifies this downstream product; it does not imply endorsement by th
 - [Local onboarding for Apple Silicon](docs/ONBOARDING.md)
 - [Local verification evidence and timings](docs/LOCAL_VERIFICATION.md)
 - [Latest daily engineering report](DAILY_REPORT.md)
+
+## Public Ubuntu deployment
+
+- [Ubuntu setup and runtime boundaries](docs/UBUNTU_SETUP.md)
+- [Network, domain and TLS](docs/NETWORK_AND_DOMAIN.md)
+- [Dedicated Jenkins deployment](docs/JENKINS_DEPLOYMENT.md)
+- [Deployment and rollback runbook](docs/DEPLOYMENT_RUNBOOK.md)
+- [Executed verification and remaining blockers](docs/DEPLOYMENT_VERIFICATION.md)
+- [Environment matrix](docs/ENVIRONMENT_MATRIX.md)
 
 ## Inherited YAFFA documentation
 

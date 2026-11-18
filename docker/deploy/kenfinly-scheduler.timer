@@ -1,0 +1,11 @@
+[Unit]
+Description=Kenfinly 2 once-per-minute scheduler timer
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+Persistent=true
+AccuracySec=1s
+Unit=kenfinly-scheduler.service
+
+[Install]
+WantedBy=timers.target

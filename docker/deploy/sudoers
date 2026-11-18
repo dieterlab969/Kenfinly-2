@@ -1,0 +1,3 @@
+# Only the reviewed project release entry point and exact owned service actions.
+jenkins ALL=(kenfinly-deploy) NOPASSWD: /usr/local/lib/kenfinly/release.py
+kenfinly-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl start kenfinly-fpm.service, /usr/bin/systemctl reload kenfinly-fpm.service, /usr/bin/systemctl restart kenfinly-queue.service, /usr/bin/systemctl start kenfinly-scheduler.timer
