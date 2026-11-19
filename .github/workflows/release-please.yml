@@ -12,6 +12,7 @@ name: Release Please
 
 jobs:
   release-please:
+    if: github.repository == 'kantorge/yaffa'
     runs-on: ubuntu-latest
     steps:
       - name: Run Release Please
