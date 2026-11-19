@@ -1,0 +1,10 @@
+{
+  "name": "web",
+  "active": false,
+  "events": ["push"],
+  "config": {
+    "url": "https://build.getkenka.com/github-webhook/",
+    "content_type": "json",
+    "insecure_ssl": "0"
+  }
+}

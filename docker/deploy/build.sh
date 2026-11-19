@@ -15,7 +15,9 @@ php -r 'exit(PHP_MAJOR_VERSION === 8 && PHP_MINOR_VERSION === 4 ? 0 : 1);'
 node -e 'if (!process.version.startsWith("v24.")) process.exit(1)'
 cd "$source_dir"
 [[ $(git rev-parse HEAD) = "$expected_sha" ]] || { echo 'Checkout differs from selected commit' >&2; exit 2; }
-git merge-base --is-ancestor "$expected_sha" refs/remotes/origin/develop
+[[ $(git remote get-url origin) = git@github.com:dieterlab969/Kenfinly-2.git ]] || { echo 'Unexpected source repository' >&2; exit 2; }
+[[ $(git config --get-all remote.origin.fetch) = +refs/heads/deploy/my-kenfinly:refs/remotes/origin/deploy/my-kenfinly ]] || { echo 'Only the deployment branch may be fetched' >&2; exit 2; }
+[[ $(git rev-parse refs/remotes/origin/deploy/my-kenfinly) = "$expected_sha" ]] || { echo 'Selected commit is not the fetched deployment head' >&2; exit 2; }
 [[ ! -e .env && ! -L .env ]] || { echo 'Unexpected workspace .env preserved; inspect before building' >&2; exit 2; }
 [[ -f ${CI_ENV_FILE:?Jenkins secret-file credential is required} ]] || exit 2
 set -a
@@ -64,7 +66,7 @@ python3 - "$stage" "$expected_sha" "$build_number" <<'PY'
 import hashlib,json,platform,subprocess,sys
 from pathlib import Path
 stage=Path(sys.argv[1])
-data={"source_sha":sys.argv[2],"branch":"develop","build_number":sys.argv[3],
+data={"source_sha":sys.argv[2],"branch":"deploy/my-kenfinly","build_number":sys.argv[3],
       "platform":platform.system()+"/"+platform.machine(),
       "php":subprocess.check_output(["php","-r","echo PHP_VERSION;"],text=True),
       "node":subprocess.check_output(["node","--version"],text=True).strip(),

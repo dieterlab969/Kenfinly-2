@@ -136,7 +136,7 @@ def deploy(artifact, sha, build_number, apply_migrations):
                 raise RuntimeError('Artifact contains forbidden paths; extraction refused')
         archive.extractall(release, filter='data')
     metadata = json.loads((release / 'KENFINLY_BUILD.json').read_text())
-    if metadata['source_sha'] != sha or metadata['branch'] != 'develop' or metadata['platform'] != 'Linux/x86_64':
+    if metadata['source_sha'] != sha or metadata['branch'] != 'deploy/my-kenfinly' or metadata['platform'] != 'Linux/x86_64':
         raise RuntimeError('Artifact identity/platform mismatch')
     if set(metadata['locks']) != {'composer.lock', 'package-lock.json'}:
         raise RuntimeError('Both lockfile identities are required')

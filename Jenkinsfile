@@ -1,5 +1,10 @@
 pipeline {
-    agent { label 'built-in' }
+    agent {
+        node {
+            label 'built-in'
+            customWorkspace '/var/lib/jenkins/workspace/kenfinly-2-public-deploy-my-kenfinly'
+        }
+    }
 
     options {
         skipDefaultCheckout(true)
@@ -9,7 +14,7 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '12', artifactNumToKeepStr: '4'))
     }
 
-    triggers { pollSCM('H/5 * * * *') }
+    triggers { githubPush() }
 
     parameters {
         choice(name: 'ACTION', choices: ['deploy', 'rollback'], description: 'Rollback changes code only; never restores a database.')
@@ -18,29 +23,35 @@ pipeline {
 
     environment {
         PATH = "/opt/kenfinly-tools/bin:/opt/kenfinly-tools/node/bin:/usr/bin:/bin"
-        DEPLOY_BRANCH = 'develop'
+        DEPLOY_BRANCH = 'deploy/my-kenfinly'
         APP_ORIGIN = 'https://my.kenfinly.com'
     }
 
     stages {
-        stage('Checkout develop') {
+        stage('Checkout deployment branch') {
             steps {
                 script {
-                    def revision = checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: '*/develop']],
-                        userRemoteConfigs: [[
-                            url: 'git@github.com:dieterlab969/Kenfinly-2.git',
-                            credentialsId: 'github-jenkins-key',
-                            refspec: '+refs/heads/develop:refs/remotes/origin/develop'
-                        ]],
-                        extensions: [[$class: 'CloneOption', honorRefspec: true, noTags: true, shallow: false]]
-                    ])
-                    if (!(revision.GIT_BRANCH in ['origin/develop', 'develop'])) {
-                        error('Only develop may deploy this environment.')
+                    if (!(params.ACTION in ['deploy', 'rollback'])) {
+                        error('Unsupported deployment action.')
+                    }
+                    def revision = checkout(scm)
+                    if (!(revision.GIT_BRANCH in ['origin/deploy/my-kenfinly', 'deploy/my-kenfinly'])) {
+                        error('Only deploy/my-kenfinly may deploy this environment.')
+                    }
+                    if (!(revision.GIT_COMMIT ==~ /[0-9a-f]{40}/)) {
+                        error('SCM did not select an exact commit.')
                     }
                     env.RELEASE_SHA = revision.GIT_COMMIT
-                    currentBuild.description = "${params.ACTION} develop ${env.RELEASE_SHA.take(12)}"
+                    sh '''#!/bin/bash
+set -euo pipefail
+test "$(git remote get-url origin)" = 'git@github.com:dieterlab969/Kenfinly-2.git'
+test "$(git config --get-all remote.origin.fetch)" = '+refs/heads/deploy/my-kenfinly:refs/remotes/origin/deploy/my-kenfinly'
+test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+test "$(git rev-parse refs/remotes/origin/deploy/my-kenfinly)" = "$RELEASE_SHA"
+'''
+                    writeFile(file: 'selected-revision.txt', text: "branch=${env.DEPLOY_BRANCH}\nsha=${env.RELEASE_SHA}\n")
+                    archiveArtifacts(artifacts: 'selected-revision.txt', fingerprint: true)
+                    currentBuild.description = "${params.ACTION} ${env.DEPLOY_BRANCH} ${env.RELEASE_SHA.take(12)}"
                 }
             }
         }
