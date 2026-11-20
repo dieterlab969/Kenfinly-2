@@ -61,7 +61,7 @@ jobs:
           php-version: '8.4'
           extensions: bcmath, curl, dom, fileinfo, gd, mbstring, pdo_mysql, sockets, xml, zip
           coverage: none
-          tools: composer:2.7.1
+          tools: composer:2.10.0
         env:
           fail-fast: 'true'
 
@@ -110,6 +110,12 @@ jobs:
           php artisan config:clear --no-interaction
 
       - name: Install locked frontend dependencies
+        env:
+          GIT_CONFIG_COUNT: '2'
+          GIT_CONFIG_KEY_0: url.https://github.com/.insteadOf
+          GIT_CONFIG_VALUE_0: ssh://git@github.com/
+          GIT_CONFIG_KEY_1: url.https://github.com/.insteadOf
+          GIT_CONFIG_VALUE_1: 'git@github.com:'
         run: npm ci --no-audit --no-fund
 
       - name: Run JavaScript tests
