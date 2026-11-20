@@ -20,6 +20,7 @@ on:
 
 jobs:
   deploy:
+    if: github.repository == 'kantorge/yaffa'
     runs-on: ubuntu-latest
     strategy:
       matrix:
