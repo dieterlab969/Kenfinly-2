@@ -16,6 +16,7 @@ on:
 
 jobs:
   docker:
+    if: github.repository == 'kantorge/yaffa'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository
