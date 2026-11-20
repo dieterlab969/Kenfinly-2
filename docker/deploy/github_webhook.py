@@ -114,7 +114,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            if self.path != HOOK_PATH:
+            request_path, separator, query = self.path.partition('?')
+            if request_path not in [HOOK_PATH, HOOK_PATH.rstrip('/')]:
                 raise Rejected(404, 'Unknown webhook path')
             if self.headers.get('Transfer-Encoding') or len(self.headers.get_all('Content-Length', [])) != 1:
                 raise Rejected(400, 'Content length is required')
@@ -146,7 +147,8 @@ class Handler(BaseHTTPRequestHandler):
                     headers[name] = self.headers[name]
             connection = http.client.HTTPConnection('10.0.0.2', 8080, timeout=5)
             try:
-                connection.request('POST', HOOK_PATH, body=body, headers=headers)
+                target = HOOK_PATH + ('?' + query if separator else '')
+                connection.request('POST', target, body=body, headers=headers)
                 response = connection.getresponse()
                 response_body = response.read(65537)
                 if len(response_body) > 65536:
